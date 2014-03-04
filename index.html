@@ -11,6 +11,8 @@
 			#loader {text-align: center;width: 100%;display: none;z-index: 100000;background: white;}
 			#loader .message {font-size: 1.4em;}
 
+			#info {position:fixed;right:0px;float:right;width:300px;padding:10px;background: #ffffff;opacity: 0.95;}
+
 			/*Tree Graph*/
 			.node {cursor: pointer;}
 			.node circle {fill: #fff;stroke: steelblue;stroke-width: 1.5px;}
@@ -24,19 +26,20 @@
 			circle {fill: #ccc;stroke: #999;pointer-events: all;}
 			circle.parent {fill: steelblue;fill-opacity: .1;stroke: steelblue;}
 			circle.parent:hover {stroke-width: .5px;}
-			circle.child {pointer-events: none;}
-
+			/*circle.child {pointer-events: none;}*/
 
 			footer {background: #999999; padding: 10px;color: #333333;bottom:0;height:16px;z-index: 50000;}
 			footer .info-panel {}
-			footer #help-button, #sets-button {cursor: pointer;}
+			footer #museums-button, #help-button, #sets-button {cursor: pointer;}
 			footer .interest-button {cursor: pointer;}
 			footer .interest-button:hover {background: white;}
 			footer .color-swatch {float:left;width:30px;height:30px;margin-right: 5px;}	
+			footer #museums-message {display: none; height:100%;width: 100%; left:0px;position: absolute;bottom: 36px;background: #ffffff;z-index: 1000000;}
 			footer #help-message, #sets-message {display: none;width:25%;bottom:36px;left:0px;position: absolute;padding:20px;background: #c0c0c0;z-index:100000;}
-			footer .toggle-button {cursor: pointer;}
+			footer .toggle-button {cursor: pointer;float:right;vertical-align:middle;margin-left:10px;}
 			footer .on {opacity:1.0;}
 			footer .off {opacity:0.6;}
+			footer #counter {float: right;}			
 		</style>
 		<script type="text/javascript">
 		  var _gaq = _gaq || [];
@@ -60,7 +63,12 @@
 		<div id="content">
 			<div id="loader">
 				<p class="message">Building the Harvard Art Museums...</p>
-				<img src="loader.gif">
+				<img src="img/loader.gif">
+			</div>
+			<div id="info">
+				<div class="title"></div>
+				<div class="details"></div>
+				<img class="thumbnail">
 			</div>
 			<div id="museum"></div>
 		</div>
@@ -69,18 +77,28 @@
 			<div id="help-message">
 				<h2>How do I use this site?</h2>
 				<p>Navigate through the works of art by using the left, right, up, and down arrows on a keyboard, by swiping left or right on a touch screen, or by using a key and screen tapping gestures with a Leap Motion controller.</p>
+			</div>			
+			<div id="sets-message">
+				<h2>What do you want to see?</h2>
+				<div style="padding-top:10px;padding-bottom:10px;">
+					<div class="interest-button">Tree</div>
+					<div class="interest-button">Pack</div>
+					<div class="interest-button">Reset</div>
+				</div>
 			</div>
 			<div class="info-panel">
-				<span id="tree-button" class="toggle-button on">Tree</span>&nbsp;|
-				<span id="pack-button" class="toggle-button off">Pack</span>&nbsp;|
-				<span id="help-button" class="toggle-button">Help</span>					
+				<span id="tree-button">Tree</span>&nbsp;|
+				<span id="pack-button">Pack</span>&nbsp;|
+				<span id="reset-button">Reset</span>&nbsp;|
+				<span id="help-button">Help</span>		
+				<span id="info-button" class="toggle-button on"><img src="img/info.png"></span>			
 			</div>
 		</footer>
 
 
 		<!--http://handlebarsjs.com/-->
 		<script src="http://cdnjs.cloudflare.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
-		<script src="d3.v3.min.js"></script>
+		<script src="js/d3.v3.min.js"></script>
 		<script>
 			$(function() {
 				var contentHeight = $(window).height() - $("header").innerHeight() - $("footer").innerHeight();
@@ -101,9 +119,54 @@
 					packLayout();
 				});
 
+				$("#info-button").on("click", function() {
+					toggleObjectInfoPanel();
+				});
+
 				treeLayout();
 			});
 
+			function toggleObjectInfoPanel() {
+				if ($("#info").is(":visible")) {
+        			$("#info").hide();
+					$("#info-button").removeClass("on").addClass("off");
+				} else {
+        			$("#info").show();
+					$("#info-button").removeClass("off").addClass("on");
+
+				}
+			}
+
+			function updateInfoPanel(d) { 
+				var title = d3.select("#info .title");
+				var details = d3.select("#info .details");
+				var thumbnail = d3.select("#info .thumbnail");
+
+				thumbnail.attr("src",null);
+
+				if (d.depth == 1) {
+					var g;
+					if (d._children) g = d._children.length;
+					if (d.children) g = d.children.length;
+
+					title.text(d.name);
+					details.text(g += " galleries on this floor");
+
+				} else if (d.depth == 2) {
+					title.text(d.name + " (" + d.gallerynumber + ")");
+					details.text(d.objectcount + " works of art in this gallery");
+
+				} else if (d.depth == 3) {
+					var t = d.title;
+					if (d.dated) t += ", " + d.dated;
+					
+					title.text(t);
+					details.text(d.classification);
+					if (d.primaryimageurl) {
+						d3.select("#info .thumbnail").attr("src", d.primaryimageurl + "?width=150&height=150");
+					}
+				}
+			}
 
 			function packLayout() {				
 				$('#loader').show();
@@ -138,7 +201,7 @@
 				//     .size([r, r])
 				//     .value(function(d) { return d.size; });
 
-				var vis = d3.select("#content").append("svg:svg")
+				var vis = d3.select("#museum").append("svg:svg")
 				    .attr("width", w)
 				    .attr("height", h)
 				  .append("svg:g")
@@ -174,6 +237,8 @@
 				});
 
 				function zoom(d, i) {
+				  updateInfoPanel(d);
+
 				  var k = r / d.r / 2;
 				  x.domain([d.x - d.r, d.x + d.r]);
 				  y.domain([d.y - d.r, d.y + d.r]);
@@ -201,6 +266,8 @@
 			function treeLayout() {
 				$('#loader').show();
 
+				$("#reset-button").on("click", reset);
+
 				var contentHeight = $(window).height() - $("header").innerHeight() - $("footer").innerHeight();
 				var contentWidth = $(window).width();
 
@@ -211,7 +278,8 @@
 				    
 				var i = 0,
 				    duration = 750,
-				    root;
+				    root,
+				    filter = null;
 
 				var tree = d3.layout.tree()
 				    .size([height, width]);
@@ -219,29 +287,33 @@
 				var diagonal = d3.svg.diagonal()
 				    .projection(function(d) { return [d.y, d.x]; });
 
-				var svg = d3.select("#content").append("svg")
+				var svg = d3.select("#museum").append("svg")
 				    .attr("width", width + margin.right + margin.left)
 				    .attr("height", height + margin.top + margin.bottom)
 				  .append("g")
 				    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-				d3.json("museum.json", function(error, flare) {
-				  root = flare;
+				d3.json("museum.json", function(error, data) {
+				  root = data;
 				  root.x0 = height / 2;
 				  root.y0 = 0;
 
-				  function collapse(d) {
-				    if (d.children) {
-				      d._children = d.children;
-				      d._children.forEach(collapse);
-				      d.children = null;
-				    }
-				  }
-
-				  root.children.forEach(collapse);
-				  update(root);
+				  reset();
 				});
 
+				function collapse(d) {
+					if (d.children) {
+					  d._children = d.children;
+					  d._children.forEach(collapse);
+					  d.children = null;
+					}
+				}
+
+				function reset() {
+				  root.children.forEach(collapse);
+				  update(root);
+				}
+	
 				d3.select(self.frameElement).style("height", "800px");
 
 				function update(source) {
@@ -265,13 +337,14 @@
 
 				  nodeEnter.append("circle")
 				      .attr("r", 1e-6)
-				      .style("fill", function(d) { return d._children ? "lightsteelblue" : "#fff"; });
+				      .style("fill", function(d) { return d._children ? "lightsteelblue" : "#fff"; })
+				      .on("click", updateInfoPanel);
 
 				  nodeEnter.append("text")
 				      .attr("x", function(d) { return d.children || d._children ? -10 : 10; })
 				      .attr("dy", ".35em")
 				      .attr("text-anchor", function(d) { return d.children || d._children ? "end" : "start"; })
-				      .text(function(d) { return d.gallerynumber ? d.name + ' (' + d.gallerynumber + ')' : d.objectnumber ? d.title + ', ' + d.dated + ', ' + d.classification : d.name; })
+				      .text(function(d) { return d.gallerynumber ? d.name + ' (' + d.gallerynumber + ')' : d.objectnumber ? d.title : d.name; })
 				      .style("fill-opacity", 1e-6);
 
 				  // Transition nodes to their new position.
@@ -337,14 +410,25 @@
 
 				// Toggle children on click.
 				function click(d) {
-				  if (d.children) {
-				    d._children = d.children;
-				    d.children = null;
-				  } else {
-				    d.children = d._children;
-				    d._children = null;
-				  }
-				  update(d);
+					if (d.children) {
+						if (d.depth==2 && filter) {
+							d._children = d._fullChildren;
+						} else {
+							d._children = d.children;
+						}
+						d.children = null;
+					} else {
+						if (d.depth==2 && filter) {
+							d._fullChildren = d._children;
+							d.children = d._children.filter(function(d) {
+								if (d.classification == filter) return d;
+							});
+						} else {
+							d.children = d._children;
+						}
+						d._children = null;
+					}
+					update(d);
 				}
 
 				$('#loader').hide();
