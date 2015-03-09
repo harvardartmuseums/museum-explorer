@@ -7,11 +7,14 @@
 			body {background: #ffffff;color: #000000;font-family: verdana;font-size: 0.8em;margin: 0px;padding: 0px;}
 			header {background: #e7e7e7; padding: 1px 10px 1px 10px;color: #58595b;}
 
-			#content {overflow: hidden;}
+			/*#content {overflow: hidden;}*/
 			#loader {text-align: center;width: 100%;display: none;z-index: 100000;background: white;}
 			#loader .message {font-size: 1.4em;}
 
-			#info {position:fixed;right:0px;float:right;width:300px;padding:10px;background: #ffffff;opacity: 0.95;}
+			#info {position:fixed;right:0px;float:right;width:300px;padding-left: 10px;padding-right: 10px;background: #ffffff;opacity: 0.95;overflow-y:scroll;}
+
+			#info .data-block {padding-top:5px;padding-bottom: 5px;border-bottom: 1px solid #dddddd;}
+			#info img {width: 100%;}
 
 			/*Tree Graph*/
 			.node {cursor: pointer;}
@@ -30,7 +33,7 @@
 
 			footer {background: #999999; padding: 10px;color: #333333;bottom:0;height:16px;z-index: 50000;}
 			footer .info-panel {}
-			footer #museums-button, #help-button, #sets-button {cursor: pointer;}
+			footer #tree-button, #reset-button, #help-button, #pack-button {cursor: pointer;}
 			footer .interest-button {cursor: pointer;}
 			footer .interest-button:hover {background: white;}
 			footer .color-swatch {float:left;width:30px;height:30px;margin-right: 5px;}	
@@ -65,18 +68,14 @@
 				<p class="message">Building the Harvard Art Museums...</p>
 				<img src="img/loader.gif">
 			</div>
-			<div id="info">
-				<div class="title"></div>
-				<div class="details"></div>
-				<img class="thumbnail">
-			</div>
+			<div id="info"></div>
 			<div id="museum"></div>
 		</div>
 
 		<footer>
 			<div id="help-message">
 				<h2>How do I use this site?</h2>
-				<p>Navigate through the works of art by using the left, right, up, and down arrows on a keyboard, by swiping left or right on a touch screen, or by using a key and screen tapping gestures with a Leap Motion controller.</p>
+				<p>Navigate through the museums through a Pack or Tree graph. Click on a node to expand, collapse, and learn more about it.</p>
 			</div>			
 			<div id="sets-message">
 				<h2>What do you want to see?</h2>
@@ -87,6 +86,7 @@
 				</div>
 			</div>
 			<div class="info-panel">
+				<span id="museums-button">Harvard Art Museums</span>&nbsp;|
 				<span id="tree-button">Tree</span>&nbsp;|
 				<span id="pack-button">Pack</span>&nbsp;|
 				<span id="reset-button">Reset</span>&nbsp;|
@@ -98,12 +98,16 @@
 
 		<!--http://handlebarsjs.com/-->
 		<script src="http://cdnjs.cloudflare.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
-		<script src="js/d3.v3.min.js"></script>
+		<script src="js/d3/d3.v3.min.js"></script>
+        <script src="js/config.js"></script>
 		<script>
+			var museum;
+
 			$(function() {
 				var contentHeight = $(window).height() - $("header").innerHeight() - $("footer").innerHeight();
 				var contentWidth = $(window).width();
 				$("#content").height(contentHeight).width(contentWidth);
+				$("#info").height(contentHeight);
 
 				$("#tree-button").on("click", function() {
 					$("svg").remove();
@@ -123,8 +127,40 @@
 					toggleObjectInfoPanel();
 				});
 
+				$("#help-button").on("click", function() {
+					$('#help-message').toggle();
+				});
+
+				// buildTheMuseum();
 				treeLayout();
 			});
+
+			function buildTheMuseum() {
+				var _museum = {"name": "Harvard Art Museums", "children": []};
+				
+				var baseURL = HAM.config.apiBaseURL + '/gallery';
+				var urlParameters = '?apikey=' + HAM.config.apiKey +
+									'&size=50&sort=gallerynumber';
+
+				var level1 = $.getJSON(baseURL + urlParameters + '&q=floor:1');
+				var level2 = $.getJSON(baseURL + urlParameters + '&q=floor:2');
+				var level3 = $.getJSON(baseURL + urlParameters + '&q=floor:3');
+
+				$.when(level1, level2, level3).done(function(l1, l2, l3) {
+					console.log("when done");
+
+					_museum.children[0] = {"name": "Level 1"};
+					_museum.children[0].children = l1[0].records;
+
+					_museum.children[1] = {"name": "Level 2"};
+					_museum.children[1].children = l2[0].records;
+
+					_museum.children[2] = {"name": "Level 3"};
+					_museum.children[2].children = l3[0].records;
+
+					museum = _museum;	
+				});				
+			}
 
 			function toggleObjectInfoPanel() {
 				if ($("#info").is(":visible")) {
@@ -138,11 +174,14 @@
 			}
 
 			function updateInfoPanel(d) { 
-				var title = d3.select("#info .title");
-				var details = d3.select("#info .details");
-				var thumbnail = d3.select("#info .thumbnail");
+				if (!d.depth) {return;}
 
-				thumbnail.attr("src",null);
+				var info = d3.select("#info")
+								.insert("div", ":first-child")
+								.attr("class", "data-block");
+
+				var title = info.append("div");
+				var details = info.append("div");
 
 				if (d.depth == 1) {
 					var g;
@@ -150,20 +189,28 @@
 					if (d.children) g = d.children.length;
 
 					title.text(d.name);
-					details.text(g += " galleries on this floor");
+					details.text(g += " galleries on this level");
 
 				} else if (d.depth == 2) {
-					title.text(d.name + " (" + d.gallerynumber + ")");
-					details.text(d.objectcount + " works of art in this gallery");
+					var objectCount = d.objectcount || '0';
+					var description = d.name + " (" + d.gallerynumber + ")";
+					if (d.theme) description += ", " + d.theme;
+
+ 					title.text(description);
+					details.text(objectCount + " works of art in this gallery");
 
 				} else if (d.depth == 3) {
 					var t = d.title;
 					if (d.dated) t += ", " + d.dated;
 					
-					title.text(t);
+					title.append("a")
+						.attr("href", d.url)
+						.attr("target", "_blank")
+						.html(t);
 					details.text(d.classification);
 					if (d.primaryimageurl) {
-						d3.select("#info .thumbnail").attr("src", d.primaryimageurl + "?width=150&height=150");
+						info.append("img")
+							.attr("src", d.primaryimageurl + "?width=300");
 					}
 				}
 			}
@@ -317,6 +364,7 @@
 				d3.select(self.frameElement).style("height", "800px");
 
 				function update(source) {
+    			  var color = d3.scale.category20c();
 
 				  // Compute the new tree layout.
 				  var nodes = tree.nodes(root).reverse(),
@@ -410,6 +458,7 @@
 
 				// Toggle children on click.
 				function click(d) {
+					console.log(d);
 					if (d.children) {
 						if (d.depth==2 && filter) {
 							d._children = d._fullChildren;
