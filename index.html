@@ -6,7 +6,6 @@
 		<link rel="stylesheet" href="http://fonts.typotheque.com/WF-023797-007265.css" type="text/css" />
 		<style type="text/css">
 			body {background: #ffffff;color: #000000;font-family: "Neutral Regular 3", "NeutralBP", "Neutral BP", Helvetica, Arial, sans-serif;font-size: 0.8em;margin: 0px;padding: 0px;}
-			header {background: #e7e7e7; padding: 1px 10px 1px 10px;color: #58595b;}
 
 			/*#content {overflow: hidden;}*/
 			#loader {text-align: center;width: 100%;display: none;z-index: 100000;background: white;}
@@ -60,10 +59,6 @@
 		</script>		
 	</head>
 	<body>
-		<header>
-			<h1>Museum Explorer</h1>
-		</header>
-
 		<div id="content">
 			<div id="loader">
 				<p class="message">Building the Harvard Art Museums...</p>
@@ -263,17 +258,14 @@
 
 			function packLayout() {				
 				$('#loader').show();
-
-				var contentHeight = $(window).height() - $("header").innerHeight() - $("footer").innerHeight();
-				var contentWidth = $(window).width();		
 						
 				//See https://github.com/mbostock/d3/wiki/Pack-Layout
 				//See http://mbostock.github.io/d3/talk/20111018/#22
 				//http://bl.ocks.org/mbostock/4063530
 				//http://bl.ocks.org/mbostock/4063269
 				var margin = {top: 0, right: 120, bottom: 0, left: 160},
-				    width = contentWidth - margin.right - margin.left,
-				    height = contentHeight - margin.top - margin.bottom;
+				    width = $("#museum").width() - margin.right - margin.left,
+				    height = $("#museum").height();
 				    
 
 				var w = width + margin.right + margin.left,
@@ -360,13 +352,10 @@
 			function treeLayout() {
 				$("#reset-button").on("click", reset);
 
-				var contentHeight = $(window).height() - $("header").innerHeight() - $("footer").innerHeight();
-				var contentWidth = $(window).width();
-
 				//See http://bl.ocks.org/mbostock/4339083
 				var margin = {top: 0, right: 120, bottom: 0, left: 160},
-				    width = contentWidth - margin.right - margin.left,
-				    height = contentHeight - margin.top - margin.bottom;
+				    width = $("#museum").width() - margin.right - margin.left,
+				    height = $("#museum").height();
 
 				var i = 0,
 				    duration = 750,
