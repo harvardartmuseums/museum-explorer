@@ -102,12 +102,14 @@
         <script src="js/config.js"></script>
 		<script>
 			var museum;
+			var readyCount = 0;
 
 			$(function() {
 				var contentHeight = $(window).height() - $("header").innerHeight() - $("footer").innerHeight();
 				var contentWidth = $(window).width();
 				$("#content").height(contentHeight).width(contentWidth);
 				$("#info").height(contentHeight);
+				$("#museum").height(contentHeight);
 
 				$("#tree-button").on("click", function() {
 					$("svg").remove();
@@ -131,35 +133,78 @@
 					$('#help-message').toggle();
 				});
 
-				// buildTheMuseum();
-				treeLayout();
+				buildTheMuseum();
+				// treeLayout();
 			});
 
 			function buildTheMuseum() {
+				$('#loader').show();
+
 				var _museum = {"name": "Harvard Art Museums", "children": []};
 				
 				var baseURL = HAM.config.apiBaseURL + '/gallery';
 				var urlParameters = '?apikey=' + HAM.config.apiKey +
-									'&size=50&sort=gallerynumber';
+									'&size=100&sort=gallerynumber';
 
-				var level1 = $.getJSON(baseURL + urlParameters + '&q=floor:1');
-				var level2 = $.getJSON(baseURL + urlParameters + '&q=floor:2');
-				var level3 = $.getJSON(baseURL + urlParameters + '&q=floor:3');
+				var level0 = $.getJSON(baseURL + urlParameters + '&floor=0');
+				var level1 = $.getJSON(baseURL + urlParameters + '&floor=1');
+				var level2 = $.getJSON(baseURL + urlParameters + '&floor=2');
+				var level3 = $.getJSON(baseURL + urlParameters + '&floor=3');
+				var level4 = $.getJSON(baseURL + urlParameters + '&floor=4');
+				var level5 = $.getJSON(baseURL + urlParameters + '&floor=5');
 
-				$.when(level1, level2, level3).done(function(l1, l2, l3) {
-					console.log("when done");
+				$.when(level0, level1, level2, level3, level4, level5).done(function(l0, l1, l2, l3, l4, l5) {
+					l0[0].records.forEach(prepareRoom);
+					_museum.children[0] = {"name": "Lower Level"};
+					_museum.children[0].children = l0[0].records;
 
-					_museum.children[0] = {"name": "Level 1"};
-					_museum.children[0].children = l1[0].records;
+					l1[0].records.forEach(prepareRoom);
+					_museum.children[1] = {"name": "Level 1"};
+					_museum.children[1].children = l1[0].records;
 
-					_museum.children[1] = {"name": "Level 2"};
-					_museum.children[1].children = l2[0].records;
+					l2[0].records.forEach(prepareRoom);
+					_museum.children[2] = {"name": "Level 2"};
+					_museum.children[2].children = l2[0].records;
+ 
+ 					l3[0].records.forEach(prepareRoom);
+					_museum.children[3] = {"name": "Level 3"};
+					_museum.children[3].children = l3[0].records;
 
-					_museum.children[2] = {"name": "Level 3"};
-					_museum.children[2].children = l3[0].records;
+					l4[0].records.forEach(prepareRoom);
+					_museum.children[4] = {"name": "Level 4"};
+					_museum.children[4].children = l4[0].records;
 
-					museum = _museum;	
+					l5[0].records.forEach(prepareRoom);
+					_museum.children[5] = {"name": "Level 5"};
+					_museum.children[5].children = l5[0].records;
+
+					museum = _museum;
+
+					interval = setInterval(function() {
+						if (readyCount == 64) {
+							treeLayout();
+							clearInterval(interval);	
+						}
+					}, 30);
 				});				
+			}
+
+			function prepareRoom(d) {
+				var baseURL = HAM.config.apiBaseURL + '/object';
+				var urlParameters = '?apikey=' + HAM.config.apiKey +
+									'&size=100&gallery=' + d.gallerynumber + '&sort=gallerynumber';				
+
+				var art = $.getJSON(baseURL + urlParameters);
+				$.when(art).done(function(a) {
+					d.objectcount = a.info.totalrecords;	
+					d.children = a.records;
+
+					readyCount++;
+				});									
+
+				if (d.id) {
+					delete d.id;
+				}
 			}
 
 			function toggleObjectInfoPanel() {
@@ -225,13 +270,13 @@
 				//See http://mbostock.github.io/d3/talk/20111018/#22
 				//http://bl.ocks.org/mbostock/4063530
 				//http://bl.ocks.org/mbostock/4063269
-				var margin = {top: 20, right: 120, bottom: 20, left: 160},
+				var margin = {top: 0, right: 120, bottom: 0, left: 160},
 				    width = contentWidth - margin.right - margin.left,
 				    height = contentHeight - margin.top - margin.bottom;
 				    
 
-				var w = contentWidth,
-				    h = contentHeight,
+				var w = width + margin.right + margin.left,
+				    h = height + margin.top + margin.bottom,
 				    r = height,
 				    x = d3.scale.linear().range([0, r]),
 				    y = d3.scale.linear().range([0, r]),
@@ -248,20 +293,21 @@
 				//     .size([r, r])
 				//     .value(function(d) { return d.size; });
 
-				var vis = d3.select("#museum").append("svg:svg")
-				    .attr("width", w)
-				    .attr("height", h)
-				  .append("svg:g")
+				var vis = d3.select("#museum").append("svg")
+				    .attr("width", width + margin.right + margin.left)
+				    .attr("height", height + margin.top + margin.bottom)
+				  .append("g")
 				    .attr("transform", "translate(" + (w - r) / 2 + "," + (h - r) / 2 + ")");
 
-				d3.json("museum.json", function(data) {
-				  node = root = data;
+				// d3.json("museum.json", function(data) {
+				  // node = root = data;
+				  node = root = $.extend(true, {}, museum);
 
 				  var nodes = pack.nodes(root);
 
 				  vis.selectAll("circle")
 				      .data(nodes)
-				    .enter().append("svg:circle")
+				    .enter().append("circle")
 				      .attr("class", function(d) { return d.children ? "parent" : "child"; })
 				      .attr("cx", function(d) { return d.x; })
 				      .attr("cy", function(d) { return d.y; })
@@ -271,7 +317,7 @@
 
 				  vis.selectAll("text")
 				      .data(nodes)
-				    .enter().append("svg:text")
+				    .enter().append("text")
 				      .attr("class", function(d) { return d.children ? "parent" : "child"; })
 				      .attr("x", function(d) { return d.x; })
 				      .attr("y", function(d) { return d.y; })
@@ -281,7 +327,7 @@
 				      .text(function(d) { return d.classification ? d.classification : d.name; });
 
 				  d3.select(window).on("click", function() { zoom(root); });
-				});
+				// });
 
 				function zoom(d, i) {
 				  updateInfoPanel(d);
@@ -311,18 +357,16 @@
 			}
 
 			function treeLayout() {
-				$('#loader').show();
-
 				$("#reset-button").on("click", reset);
 
 				var contentHeight = $(window).height() - $("header").innerHeight() - $("footer").innerHeight();
 				var contentWidth = $(window).width();
 
 				//See http://bl.ocks.org/mbostock/4339083
-				var margin = {top: 20, right: 120, bottom: 20, left: 160},
+				var margin = {top: 0, right: 120, bottom: 0, left: 160},
 				    width = contentWidth - margin.right - margin.left,
 				    height = contentHeight - margin.top - margin.bottom;
-				    
+
 				var i = 0,
 				    duration = 750,
 				    root,
@@ -340,13 +384,20 @@
 				  .append("g")
 				    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-				d3.json("museum.json", function(error, data) {
-				  root = data;
-				  root.x0 = height / 2;
-				  root.y0 = 0;
+				root = $.extend(true, {}, museum);
+				// root = museum;
+			  	root.x0 = height / 2;
+			  	root.y0 = 0;
 
-				  reset();
-				});
+			  	reset();
+
+				// d3.json("museum.json", function(error, data) {
+				//   root = data;
+				//   root.x0 = height / 2;
+				//   root.y0 = 0;
+
+				//   reset();
+				// });
 
 				function collapse(d) {
 					if (d.children) {
@@ -458,7 +509,6 @@
 
 				// Toggle children on click.
 				function click(d) {
-					console.log(d);
 					if (d.children) {
 						if (d.depth==2 && filter) {
 							d._children = d._fullChildren;
