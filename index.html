@@ -8,8 +8,8 @@
 			body {background: #ffffff;color: #000000;font-family: "Neutral Regular 3", "NeutralBP", "Neutral BP", Helvetica, Arial, sans-serif;font-size: 0.8em;margin: 0px;padding: 0px;}
 
 			/*#content {overflow: hidden;}*/
-			#loader {text-align: center;width: 100%;display: none;z-index: 100000;background: white;}
-			#loader .message {font-size: 1.4em;}
+			#loader {text-align: center;width: 100%;height:100%;display: none;z-index: 100000;background: white;overflow: hidden;position: absolute;}
+			#loader .message {font-size: 1.5em;}
 
 			#info {position:fixed;right:0px;float:right;width:300px;padding-left: 10px;padding-right: 10px;background: #ffffff;opacity: 0.95;overflow-y:scroll;}
 
@@ -19,23 +19,24 @@
 			/*Tree Graph*/
 			.node {cursor: pointer;}
 			.node circle {fill: #fff;stroke: steelblue;stroke-width: 1.5px;}
-			.node text {font: 12px verdana;}
+			.node text {font: 12px;}
 			.link {fill: none;stroke: #ccc;stroke-width: 1.5px;}	
 
-
 			/*Pack Graph*/
-			text {font-size: 11px;pointer-events: none;}
-			text.parent {fill: steelblue;}
-			circle {fill: #ccc;stroke: #999;pointer-events: all;}
+			text {font: 12px;cursor: pointer;}
+			circle {fill: #ccc;stroke: #999;pointer-events: all;cursor: pointer;}
+			circle.child {pointer-events: none;}
 			circle.parent {fill: steelblue;fill-opacity: .1;stroke: steelblue;}
-			circle.parent:hover {stroke-width: .5px;}
-			/*circle.child {pointer-events: none;}*/
+			circle.parent:hover {stroke-width: 1.5px;}
+			circle.on {pointer-events: auto;}
+			circle.on:hover {stroke-width: 2.5px;}
 
 			footer {background: #999999; padding: 10px;color: #333333;bottom:0;height:16px;z-index: 50000;}
 			footer .info-panel {}
-			footer #tree-button, #reset-button, #help-button, #pack-button {cursor: pointer;}
+			footer #tree-button, #reset-button, #help-button, #pack-button, #sets-button {cursor: pointer;}
 			footer .interest-button {cursor: pointer;}
-			footer .interest-button:hover {background: white;}
+			footer .interest-button:hover, .button-on {background: white;}
+			footer .interest-color {border-radius: 50%;display: inline-block;margin-left:5px;margin-right:5px; width:10px;height:10px;}
 			footer .color-swatch {float:left;width:30px;height:30px;margin-right: 5px;}	
 			footer #museums-message {display: none; height:100%;width: 100%; left:0px;position: absolute;bottom: 36px;background: #ffffff;z-index: 1000000;}
 			footer #help-message, #sets-message {display: none;width:25%;bottom:36px;left:0px;position: absolute;padding:20px;background: #c0c0c0;z-index:100000;}
@@ -61,7 +62,8 @@
 	<body>
 		<div id="content">
 			<div id="loader">
-				<p class="message">Building the Harvard Art Museums...</p>
+				<!-- <p class="message">Building the Harvard Art Museums...</p> -->
+				<h1>Building the Harvard Art Museums...</h1>
 				<img src="img/loader.gif">
 			</div>
 			<div id="info"></div>
@@ -75,30 +77,39 @@
 			</div>			
 			<div id="sets-message">
 				<h2>What do you want to see?</h2>
+				<div id="classification-filters" style="padding-top:10px;padding-bottom:10px;display:block;height:150px;overflow-y:scroll;"></div>
+				<div id="division-filters" style="padding-top:10px;padding-bottom:10px;"></div>
+				<h2>How do you want to see it?</h2>
 				<div style="padding-top:10px;padding-bottom:10px;">
-					<div class="interest-button">Tree</div>
-					<div class="interest-button">Pack</div>
-					<div class="interest-button">Reset</div>
+					<div id="tree-button" class="interest-button">Tree Layout</div>
+					<div id="pack-button" class="interest-button">Pack Layout</div>
+					<div id="floorplan-button" class="interest-button">Floor Plan</div>
 				</div>
+				<div id="reset-button" class="interest-button">Reset the layout</div>
 			</div>
 			<div class="info-panel">
 				<span id="museums-button">Harvard Art Museums</span>&nbsp;|
-				<span id="tree-button">Tree</span>&nbsp;|
-				<span id="pack-button">Pack</span>&nbsp;|
-				<span id="reset-button">Reset</span>&nbsp;|
+				<span id="sets-button">Interests</span>&nbsp;|
 				<span id="help-button">Help</span>		
 				<span id="info-button" class="toggle-button on"><img src="img/info.png"></span>			
 			</div>
 		</footer>
 
-
-		<!--http://handlebarsjs.com/-->
+		<script src="//cdnjs.cloudflare.com/ajax/libs/handlebars.js/1.0.rc.2/handlebars.min.js"></script>
 		<script src="http://cdnjs.cloudflare.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
 		<script src="js/d3/d3.v3.min.js"></script>
         <script src="js/config.js"></script>
+		<script id="object-filter-template" type="text/template">
+			{{#buckets}}
+				<div class="interest-button" data-field="{{../field}}" data-value="{{key}}"><div class="interest-color" style="background:{{color}}"></div>{{key}} ({{doc_count}})</div>
+			{{/buckets}}
+		</script>        
 		<script>
 			var museum;
 			var readyCount = 0;
+			var layoutType = '',
+				filterSelection = [];
+			var colors = d3.scale.category20c();
 
 			$(function() {
 				var contentHeight = $(window).height() - $("header").innerHeight() - $("footer").innerHeight();
@@ -107,18 +118,34 @@
 				$("#info").height(contentHeight);
 				$("#museum").height(contentHeight);
 
+				$('#loader').show();
+
 				$("#tree-button").on("click", function() {
 					$("svg").remove();
-					$("#tree-button").addClass("on").removeClass("off");
-					$("#pack-button").addClass("off").removeClass("on");
+					$(this).addClass("button-on");
+					$("#floorplan-button").removeClass("button-on");
+					$("#pack-button").removeClass("button-on");
 					treeLayout();
 				});
 
 				$("#pack-button").on("click", function() {
 					$("svg").remove();
-					$("#pack-button").addClass("on").removeClass("off");
-					$("#tree-button").addClass("off").removeClass("on");
+					$(this).addClass("button-on");
+					$("#floorplan-button").removeClass("button-on");
+					$("#tree-button").removeClass("button-on");
 					packLayout();
+				});
+
+				$("#floorplan-button").on("click", function() {
+					$("svg").remove();
+					$(this).addClass("button-on");					
+					$("#pack-button").removeClass("button-on");
+					$("#tree-button").removeClass("button-on");
+					floorPlanLayout();
+				});
+
+				$("#sets-button").on("click", function() {
+					$('#sets-message').toggle();
 				});
 
 				$("#info-button").on("click", function() {
@@ -129,13 +156,11 @@
 					$('#help-message').toggle();
 				});
 
+				buildPicklists();
 				buildTheMuseum();
-				// treeLayout();
 			});
 
 			function buildTheMuseum() {
-				$('#loader').show();
-
 				var _museum = {"name": "Harvard Art Museums", "children": []};
 				
 				var baseURL = HAM.config.apiBaseURL + '/gallery';
@@ -203,6 +228,35 @@
 				}
 			}
 
+			function buildPicklists() {
+				var baseURL = HAM.config.apiBaseURL + '/object';
+				var urlParameters = '?apikey=' + HAM.config.apiKey +
+									'&size=0&gallery=any&aggregation={' +
+										'"by_classification":{"terms":{"field":"classification.exact","size":0}},' +
+										'"by_division":{"terms":{"field":"division"}}}';
+				
+				$.getJSON(baseURL + urlParameters, function(data, error) {
+					var filterSource = $('#object-filter-template').html();
+					var filterTemplate = Handlebars.compile(filterSource);
+
+					data.aggregations.by_classification.field = "classification";
+					data.aggregations.by_classification.buckets.forEach(function (d) {
+						d.color = colors(d.key);
+					});
+					var filterInfo = filterTemplate(data.aggregations.by_classification);
+					$('#classification-filters').html(filterInfo);					
+
+					// data.aggregations.by_classification.field = "division";
+					// var filterInfo = filterTemplate(data.aggregations.by_division);
+					// $('#division-filters').html(filterInfo);					
+
+					$("[data-field='classification']").on("click", function() {
+						$(this).toggleClass("button-on");
+						toggleSelection($(this).data("value"));
+					});
+				});
+			}
+
 			function toggleObjectInfoPanel() {
 				if ($("#info").is(":visible")) {
         			$("#info").hide();
@@ -256,8 +310,127 @@
 				}
 			}
 
-			function packLayout() {				
+			function toggleSelection(c) {
+				var i = $.inArray(c, filterSelection);
+				if (i > -1) {
+					filterSelection.splice(i, 1);
+				} else {
+					filterSelection.push(c);
+				}
+				//See http://stackoverflow.com/questions/18056716/d3-js-alternative-to-selecting-elements-by-data-attributes
+				if (layoutType === "pack") {
+					d3.selectAll("#museum circle.child, #museum text.child")
+						.style("opacity", 1.0)
+						.filter(function(d) {return ($.inArray(d.classification, filterSelection) < 0);})
+							.style("opacity", 0.2);
+				
+				} else if (layoutType === "tree") {
+					
+				} else if (layoutType === "floorplan") {
+					d3.selectAll("#museum circle.object")
+						.style("opacity", 1.0)
+						.filter(function(d) {return ($.inArray(d.classification, filterSelection) < 0);})
+							.style("opacity", 0);					
+				}
+			}
+
+			function floorPlanLayout() {
+				layoutType = "floorplan";
+				$("#reset-button").on("click", reset);
+
+				var margin = {top: 0, right: 120, bottom: 0, left: 160},
+				    width = $("#museum").width() - margin.right - margin.left,
+				    height = $("#museum").height();
+				    
+				var w = width + margin.right + margin.left,
+				    h = height + margin.top + margin.bottom;
+				
+				// var color = d3.scale.category20c();
+
+				var node = $.extend(true, {}, museum);
+				
+				d3.xml("img/floor-1.svg", "image/svg+xml", function(error, data) {
+					populateFloor(data, 1);
+	
+					d3.xml("img/floor-2.svg", "image/svg+xml", function(error, data) {
+						populateFloor(data, 2);
+	
+						d3.xml("img/floor-3.svg", "image/svg+xml", function(error, data) {
+							populateFloor(data, 3);
+							$('#loader').hide();			
+						});
+					});
+				});
+
+				function populateFloor(data, floorNumber) {
+					var floor = document.getElementById('museum')
+									.appendChild(data.documentElement);
+					
+					var canvas = d3.select(floor)
+						.attr("id", "floor-" + floorNumber)
+						.attr("width", (width + margin.right + margin.left)/3)
+				    	.attr("height", height + margin.top + margin.bottom);
+
+				    node.children[floorNumber].children.forEach(function(d) {
+					    var r = d3.select('#rooms path[data-room="' + d.gallerynumber + '"]');
+					    if (!r.empty()) {
+							var rDims = r.node().getBBox();
+							
+							var n = d3.layout.pack()
+								.value(function(d) { return 20; })
+								.size([rDims.width, rDims.height])
+								.nodes(d);
+
+							n.shift();
+
+							canvas.selectAll("circles")
+									.data(n)
+								.enter().append("circle")
+									.attr("class", "object")
+									.attr('cx', function(d) { return d.x + rDims.x; })
+									.attr('cy', function(d) { return d.y + rDims.y; })
+									.attr('r', function(d) { return d.r; })
+									.style('fill',  function(d) { return d.classification ? colors(d.classification) : ""; })
+									.style('stroke', 'grey')
+									.on("click", updateInfoPanel);
+						}
+				    });
+				}
+
+				function reset() {
+					filterSelection = [];
+					$(".interest-button").removeClass("button-on");
+					d3.selectAll("#museum circle.object")
+						.style("opacity", 1.0);
+				}
+
+				function updateInfoPanel(data) {
+					var info = d3.select("#info")
+								.insert("div", ":first-child")
+								.attr("class", "data-block");
+
+					var title = info.append("div");
+					var details = info.append("div");
+					
+					var t = data.title;
+					if (data.dated) t += ", " + data.dated;
+					
+					title.append("a")
+						.attr("href", data.url)
+						.attr("target", "_blank")
+						.html(t);
+					details.text(data.classification);
+					if (data.primaryimageurl) {
+						info.append("img")
+							.attr("src", data.primaryimageurl + "?width=300");
+					}					
+				}
+			}
+
+			function packLayout() {
+				layoutType = "pack";
 				$('#loader').show();
+				$("#reset-button").on("click", reset);
 						
 				//See https://github.com/mbostock/d3/wiki/Pack-Layout
 				//See http://mbostock.github.io/d3/talk/20111018/#22
@@ -276,80 +449,90 @@
 				    node,
 				    root;
 				    
-    			var color = d3.scale.category20c();
+    			// var color = d3.scale.category20c();
 
 				var pack = d3.layout.pack()
 				    .size([r, r])
 				    .value(function(d) { return 10; });				
 
-				// var pack = d3.layout.pack()
-				//     .size([r, r])
-				//     .value(function(d) { return d.size; });
-
 				var vis = d3.select("#museum").append("svg")
 				    .attr("width", width + margin.right + margin.left)
 				    .attr("height", height + margin.top + margin.bottom)
+				    .on("click", function() { zoom(root); })
 				  .append("g")
 				    .attr("transform", "translate(" + (w - r) / 2 + "," + (h - r) / 2 + ")");
 
-				// d3.json("museum.json", function(data) {
-				  // node = root = data;
-				  node = root = $.extend(true, {}, museum);
+				node = root = $.extend(true, {}, museum);
 
-				  var nodes = pack.nodes(root);
+				var nodes = pack.nodes(root);
 
-				  vis.selectAll("circle")
-				      .data(nodes)
-				    .enter().append("circle")
-				      .attr("class", function(d) { return d.children ? "parent" : "child"; })
-				      .attr("cx", function(d) { return d.x; })
-				      .attr("cy", function(d) { return d.y; })
-				      .attr("r", function(d) { return d.r; })
-				      .style("fill", function(d) { return d.classification ? color(d.classification) : ""; })
-				      .on("click", function(d) { return zoom(node == d ? root : d); });
+				vis.selectAll("circle")
+				  .data(nodes)
+				.enter().append("circle")
+				  .attr("class", function(d) { return d.children ? "parent" : "child"; })
+				  .attr("cx", function(d) { return d.x; })
+				  .attr("cy", function(d) { return d.y; })
+				  .attr("r", function(d) { return d.r; })
+				  .style("fill", function(d) { return d.classification ? colors(d.classification) : ""; })
+				  .on("click", function(d) { return zoom(node == d ? root : d); });
 
-				  vis.selectAll("text")
-				      .data(nodes)
-				    .enter().append("text")
-				      .attr("class", function(d) { return d.children ? "parent" : "child"; })
-				      .attr("x", function(d) { return d.x; })
-				      .attr("y", function(d) { return d.y; })
-				      .attr("dy", ".35em")
-				      .attr("text-anchor", "middle")
-				      .style("opacity", function(d) { return d.r > 20 ? 1 : 0; })
-				      .text(function(d) { return d.classification ? d.classification : d.name; });
+				vis.selectAll("text")
+				  .data(nodes)
+				.enter().append("text")
+				  .attr("class", function(d) { return d.children ? "parent" : "child"; })
+				  .attr("x", function(d) { return d.x; })
+				  .attr("y", function(d) { return d.y; })
+				  .attr("dy", ".35em")
+				  .attr("text-anchor", "middle")
+				  .style("opacity", function(d) { return d.r > 20 ? 1 : 0; })
+				  .style("display", function(d) { return d.parent === root ? "inline" : "none"})
+				  .text(function(d) { return d.gallerynumber ? d.name + ' (' + d.gallerynumber + ')' : d.objectnumber ? d.classification : d.name; })
+				  .on("click", function(d) { return zoom(node == d ? root : d); });
 
-				  d3.select(window).on("click", function() { zoom(root); });
-				// });
+				function reset() {
+					d3.selectAll("#museum circle.child")
+						.style("opacity", 1.0);
+				}
 
 				function zoom(d, i) {
 				  updateInfoPanel(d);
 
-				  var k = r / d.r / 2;
-				  x.domain([d.x - d.r, d.x + d.r]);
-				  y.domain([d.y - d.r, d.y + d.r]);
+				  var focus = d;
 
-				  var t = vis.transition()
-				      .duration(d3.event.altKey ? 7500 : 750);
+				  //Zoom up until the second last depth
+				  if (focus.children) {
+					  var k = r / d.r / 2;
+					  x.domain([d.x - d.r, d.x + d.r]);
+					  y.domain([d.y - d.r, d.y + d.r]);
 
-				  t.selectAll("circle")
-				      .attr("cx", function(d) { return x(d.x); })
-				      .attr("cy", function(d) { return y(d.y); })
-				      .attr("r", function(d) { return k * d.r; });
+					  var t = vis.transition()
+					      .duration(d3.event.altKey ? 7500 : 750);
 
-				  t.selectAll("text")
-				      .attr("x", function(d) { return x(d.x); })
-				      .attr("y", function(d) { return y(d.y); })
-				      .style("opacity", function(d) { return k * d.r > 20 ? 1 : 0; });
+					  t.selectAll("circle")
+					      .attr("cx", function(d) { return x(d.x); })
+					      .attr("cy", function(d) { return y(d.y); })
+					      .attr("r", function(d) { return k * d.r; });
 
+					  t.selectAll("circle.child")
+					  	  .attr("class", function(d) { return (d.parent ===focus && focus.depth == 2) ? "child on" : "child"; });
+
+					  t.selectAll("text")
+					      .attr("x", function(d) { return x(d.x); })
+					      .attr("y", function(d) { return y(d.y); })
+					      .style("display", function(d) { return d.parent === focus ? "inline" : "none"})
+					      .style("opacity", function(d) { return k * d.r > 20 ? 1 : 0; });
+				  }
+
+				  //Keep track of the selected node
 				  node = d;
 				  d3.event.stopPropagation();
 				}			
 
-				$('#loader').hide();	
+				$('#loader').hide();			
 			}
 
 			function treeLayout() {
+				layoutType = "tree";
 				$("#reset-button").on("click", reset);
 
 				//See http://bl.ocks.org/mbostock/4339083
@@ -380,14 +563,6 @@
 			  	root.y0 = 0;
 
 			  	reset();
-
-				// d3.json("museum.json", function(error, data) {
-				//   root = data;
-				//   root.x0 = height / 2;
-				//   root.y0 = 0;
-
-				//   reset();
-				// });
 
 				function collapse(d) {
 					if (d.children) {
@@ -434,7 +609,8 @@
 				      .attr("dy", ".35em")
 				      .attr("text-anchor", function(d) { return d.children || d._children ? "end" : "start"; })
 				      .text(function(d) { return d.gallerynumber ? d.name + ' (' + d.gallerynumber + ')' : d.objectnumber ? d.title : d.name; })
-				      .style("fill-opacity", 1e-6);
+				      .style("fill-opacity", 1e-6)
+				      .on("click", updateInfoPanel);
 
 				  // Transition nodes to their new position.
 				  var nodeUpdate = node.transition()
@@ -447,7 +623,7 @@
 
 				  nodeUpdate.select("circle")
 				      .attr("r", function(d) {return d.objectcount ? d.objectcount * 0.5 : 4.5;})
-				      .style("fill", function(d) { return d._children ? "lightsteelblue" : "#fff"; });				      
+				      .style("fill", function(d) { return d._children ? "lightsteelblue" : d.classification ? color(d.classification) : "#fff"; });				      
 
 				  nodeUpdate.select("text")
 				      .style("fill-opacity", 1);
