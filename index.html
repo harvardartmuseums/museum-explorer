@@ -111,6 +111,14 @@
 				filterSelection = [];
 			var colors = d3.scale.category20c();
 
+			var color = d3.scale.linear().domain([0,900])
+      				.interpolate(d3.interpolateHcl)
+      				.range([d3.rgb("#FF0000"), d3.rgb('#FFFFFF')]);
+
+			// var heatMapColors = d3.scale.quantile().domain([0,900]).range(d3.range(9));
+			
+
+
 			$(function() {
 				var contentHeight = $(window).height() - $("header").innerHeight() - $("footer").innerHeight();
 				var contentWidth = $(window).width();
@@ -213,12 +221,19 @@
 			function prepareRoom(d) {
 				var baseURL = HAM.config.apiBaseURL + '/object';
 				var urlParameters = '?apikey=' + HAM.config.apiKey +
-									'&size=100&gallery=' + d.gallerynumber + '&sort=gallerynumber';				
+									'&size=100&gallery=' + d.gallerynumber + '&sort=gallerynumber&fields=objectnumber,objectid,title,dated,url,primaryimageurl,classification,gallery';				
 
 				var art = $.getJSON(baseURL + urlParameters);
 				$.when(art).done(function(a) {
 					d.objectcount = a.info.totalrecords;	
 					d.children = a.records;
+
+					for (var i = a.records.length - 1; i >= 0; i--) {
+						dt1 = new Date(a.records[i].gallery.begindate);
+						dt2 = new Date();
+						var age = Math.floor((Date.UTC(dt2.getFullYear(), dt2.getMonth(), dt2.getDate()) - Date.UTC(dt1.getFullYear(), dt1.getMonth(), dt1.getDate()) ) /(1000 * 60 * 60 * 24));
+						a.records[i].gallery.age = age;
+					}
 
 					readyCount++;
 				});									
@@ -297,12 +312,12 @@
 				} else if (d.depth == 3) {
 					var t = d.title;
 					if (d.dated) t += ", " + d.dated;
-					
+
 					title.append("a")
 						.attr("href", d.url)
 						.attr("target", "_blank")
 						.html(t);
-					details.text(d.classification);
+					details.text(d.classification + "; On view for " + d.gallery.age + " days");
 					if (d.primaryimageurl) {
 						info.append("img")
 							.attr("src", d.primaryimageurl + "?width=300");
@@ -390,7 +405,8 @@
 									.attr('cx', function(d) { return d.x + rDims.x; })
 									.attr('cy', function(d) { return d.y + rDims.y; })
 									.attr('r', function(d) { return d.r; })
-									.style('fill',  function(d) { return d.classification ? colors(d.classification) : ""; })
+									// .style('fill',  function(d) { return d.classification ? colors(d.classification) : ""; })
+									.style('fill',  function(d) { return color(d.gallery.age); })
 									.style('stroke', 'grey')
 									.on("click", updateInfoPanel);
 						}
@@ -419,7 +435,7 @@
 						.attr("href", data.url)
 						.attr("target", "_blank")
 						.html(t);
-					details.text(data.classification);
+					details.text(data.classification + "; On view for " + data.gallery.age + " days");
 					if (data.primaryimageurl) {
 						info.append("img")
 							.attr("src", data.primaryimageurl + "?width=300");
