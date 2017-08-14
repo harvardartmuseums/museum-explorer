@@ -71,26 +71,36 @@
 		</div>
 
 		<footer>
-			<div id="help-message">
-				<h2>How do I use this site?</h2>
-				<p>Navigate through the museums through a Pack or Tree graph. Click on a node to expand, collapse, and learn more about it.</p>
+			<div id="help-message" class="menu-popup-panel">
+				<section>
+					<h2>About this site</h2>
+					<p>This site shows a near realtime view of the 1,600 objects currently on view in the Harvard Art Museums.</p>
+				</section>
+				<section style="padding-top:10px;padding-bottom:10px;">
+					<h2>How do I use this site?</h2>
+					<p>Use the options on the Interests menu to switch between layouts and filter the objects. Click on a circle in any layout to learn more about it.</p>
+					<p>If you get lost, click Reset the Layout on the Interests menu.</p>
+				</section>
 			</div>			
-			<div id="sets-message">
-				<h2>What do you want to see?</h2>
-				<div id="classification-filters" style="padding-top:10px;padding-bottom:10px;display:block;height:150px;overflow-y:scroll;"></div>
-				<div id="division-filters" style="padding-top:10px;padding-bottom:10px;"></div>
-				<h2>How do you want to see it?</h2>
-				<div style="padding-top:10px;padding-bottom:10px;">
-					<div id="tree-button" class="interest-button">Tree Layout</div>
-					<div id="pack-button" class="interest-button">Pack Layout</div>
-					<div id="floorplan-button" class="interest-button">Floor Plan</div>
-				</div>
-				<div id="reset-button" class="interest-button">Reset the layout</div>
+			<div id="sets-message" class="menu-popup-panel">
+				<section>
+					<h2>What do you want to see?</h2>
+					<div id="classification-filters" style="display:block;height:175px;overflow-y:scroll;"></div>
+				</section>
+				<section style="padding-top:10px;padding-bottom:10px;">
+					<h2>How do you want to see it?</h2>
+					<div id="tree-button" class="interest-button">Tree Diagram</div>
+					<div id="pack-button" class="interest-button">Pack Graph</div>
+					<div id="floorplan-button" class="interest-button">Floor Plans</div>
+				</section>
+				<section style="padding-top:10px;padding-bottom:10px;">
+					<div id="reset-button" class="interest-button">Reset the layout</div>
+				</section>
 			</div>
 			<div class="info-panel">
 				<span id="museums-button">Harvard Art Museums</span>&nbsp;|
-				<span id="sets-button">Interests</span>&nbsp;|
-				<span id="help-button">Help</span>		
+				<span id="sets-button" class="menu-button">Interests</span>&nbsp;|
+				<span id="help-button" class="menu-button">Help</span>		
 				<span id="info-button" class="toggle-button on"><img src="img/info.png"></span>			
 			</div>
 		</footer>
@@ -145,6 +155,7 @@
 				});
 
 				$("#sets-button").on("click", function() {
+					$(".menu-popup-panel").not("#sets-message").hide();
 					$('#sets-message').toggle();
 				});
 
@@ -153,6 +164,7 @@
 				});
 
 				$("#help-button").on("click", function() {
+					$(".menu-popup-panel").not("#help-message").hide();
 					$('#help-message').toggle();
 				});
 
