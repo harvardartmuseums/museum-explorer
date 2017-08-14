@@ -144,6 +144,7 @@
 					$("#floorplan-button").removeClass("button-on");
 					$("#tree-button").removeClass("button-on");
 					packLayout();
+					updateLayout();
 				});
 
 				$("#floorplan-button").on("click", function() {
@@ -151,7 +152,7 @@
 					$(this).addClass("button-on");					
 					$("#pack-button").removeClass("button-on");
 					$("#tree-button").removeClass("button-on");
-					floorPlanLayout();
+					floorPlanLayout(updateLayout);
 				});
 
 				$("#sets-button").on("click", function() {
@@ -329,6 +330,11 @@
 				} else {
 					filterSelection.push(c);
 				}
+
+				updateLayout();
+			}
+
+			function updateLayout() {
 				//See http://stackoverflow.com/questions/18056716/d3-js-alternative-to-selecting-elements-by-data-attributes
 				if (layoutType === "pack") {
 					d3.selectAll("#museum circle.child, #museum text.child")
@@ -342,11 +348,11 @@
 					d3.selectAll("#museum circle.object")
 						.style("opacity", 1.0)
 						.filter(function(d) {return ($.inArray(d.classification, filterSelection) < 0);})
-							.style("opacity", 0);					
+							.style("opacity", 0.2);					
 				}
 			}
 
-			function floorPlanLayout() {
+			function floorPlanLayout(callback) {
 				layoutType = "floorplan";
 				$("#reset-button").on("click", reset);
 
@@ -407,6 +413,8 @@
 									.on("click", updateInfoPanel);
 						}
 				    });
+
+				    callback();
 				}
 
 				function reset() {
