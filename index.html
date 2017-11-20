@@ -41,6 +41,8 @@
 			footer #museums-message {display: none; height:100%;width: 100%; left:0px;position: absolute;bottom: 36px;background: #ffffff;z-index: 1000000;}
 			footer #help-message, #sets-message {display: none;width:25%;bottom:36px;left:0px;position: absolute;padding:20px;background: #c0c0c0;z-index:100000;}
 			footer .toggle-button {cursor: pointer;float:right;vertical-align:middle;margin-left:10px;}
+			footer .show {display: block;}
+			footer .hide {display: none;}
 			footer .on {opacity:1.0;}
 			footer .off {opacity:0.6;}
 			footer #counter {float: right;}			
@@ -84,9 +86,21 @@
 				</section>
 			</div>			
 			<div id="sets-message" class="menu-popup-panel">
-				<section>
+				<section id="classification-section" class="hide">
 					<h2>What do you want to see?</h2>
-					<div id="classification-filters" style="display:block;height:175px;overflow-y:scroll;"></div>
+					<div id="classification-filters" style="display:block;max-height:150px;overflow-y:scroll;"></div>
+				</section>
+				<section id="age-section" class="hide">
+					<h2>Installed during the past <select id="age-filters">
+						<option value="9999999">anytime</option>
+						<option value="5">5 days</option>
+						<option value="30">30 days</option>
+						<option value="60">60 days</option>
+						<option value="90">90 days</option>
+						<option value="180">6 months</option>
+						<option value="365">1 year</option>
+						<option value="730">2 years</option>
+					</select></h2>
 				</section>
 				<section style="padding-top:10px;padding-bottom:10px;">
 					<h2>How do you want to see it?</h2>
@@ -118,9 +132,17 @@
 		<script>
 			var museum;
 			var readyCount = 0;
-			var layoutType = '',
-				filterSelection = [];
+			var layoutType = '';
+			var filterSelection = {
+					"classification": [],
+					"age": 9999999
+				};
+			
 			var colors = d3.scale.category20c();
+			var color = d3.scale.linear().domain([0,1100])
+      				.interpolate(d3.interpolateHcl)
+      				.range([d3.rgb("#FF0000"), d3.rgb('#FFFFFF')]);
+
 
 			$(function() {
 				var contentHeight = $(window).height() - $("header").innerHeight() - $("footer").innerHeight();
@@ -136,6 +158,7 @@
 					$(this).addClass("button-on");
 					$("#floorplan-button").removeClass("button-on");
 					$("#pack-button").removeClass("button-on");
+					$("#classification-section, #age-section").removeClass("show").addClass("hide");
 					treeLayout();
 				});
 
@@ -144,6 +167,7 @@
 					$(this).addClass("button-on");
 					$("#floorplan-button").removeClass("button-on");
 					$("#tree-button").removeClass("button-on");
+					$("#classification-section, #age-section").removeClass("hide").addClass("show");
 					packLayout();
 					updateLayout();
 				});
@@ -153,6 +177,7 @@
 					$(this).addClass("button-on");					
 					$("#pack-button").removeClass("button-on");
 					$("#tree-button").removeClass("button-on");
+					$("#classification-section, #age-section").removeClass("hide").addClass("show");
 					floorPlanLayout(updateLayout);
 				});
 
@@ -226,13 +251,25 @@
 
 			function prepareRoom(d) {
 				var baseURL = HAM.config.apiBaseURL + '/object';
-				var urlParameters = '?apikey=' + HAM.config.apiKey +
-									'&size=100&gallery=' + d.gallerynumber + '&sort=gallerynumber';				
+				var urlParameters = $.param({
+										apikey: HAM.config.apiKey,
+										size: 100,
+										gallery: d.gallerynumber,  
+										sort: 'gallerynumber', 
+										fields: 'objectnumber,objectid,title,dated,url,primaryimageurl,classification,gallery'
+									});				
 
-				var art = $.getJSON(baseURL + urlParameters);
+				var art = $.getJSON(baseURL, urlParameters);
 				$.when(art).done(function(a) {
 					d.objectcount = a.info.totalrecords;	
 					d.children = a.records;
+
+					for (var i = a.records.length - 1; i >= 0; i--) {
+						dt1 = new Date(a.records[i].gallery.begindate);
+						dt2 = new Date();
+						var age = Math.floor((Date.UTC(dt2.getFullYear(), dt2.getMonth(), dt2.getDate()) - Date.UTC(dt1.getFullYear(), dt1.getMonth(), dt1.getDate()) ) /(1000 * 60 * 60 * 24));
+						a.records[i].gallery.age = age;
+					}
 
 					readyCount++;
 				});									
@@ -247,11 +284,13 @@
 				var urlParameters = '?apikey=' + HAM.config.apiKey +
 									'&size=0&gallery=any&aggregation={' +
 										'"by_classification":{"terms":{"field":"classification.exact","size":0}},' +
-										'"by_division":{"terms":{"field":"division"}}}';
-				
+										'"by_division":{"terms":{"field":"division"}},' + 
+										'"by_gender":{"terms":{"field":"people.gender"}}}';
+
 				$.getJSON(baseURL + urlParameters, function(data, error) {
 					var filterSource = $('#object-filter-template').html();
 					var filterTemplate = Handlebars.compile(filterSource);
+					var totalRecords = data.info.totalrecords;
 
 					data.aggregations.by_classification.field = "classification";
 					data.aggregations.by_classification.buckets.forEach(function (d) {
@@ -260,15 +299,15 @@
 					var filterInfo = filterTemplate(data.aggregations.by_classification);
 					$('#classification-filters').html(filterInfo);					
 
-					// data.aggregations.by_classification.field = "division";
-					// var filterInfo = filterTemplate(data.aggregations.by_division);
-					// $('#division-filters').html(filterInfo);					
-
 					$("[data-field='classification']").on("click", function() {
 						$(this).toggleClass("button-on");
-						toggleSelection($(this).data("value"));
+						toggleSelection("classification", $(this).data("value"));
 					});
 				});
+
+				$("#age-filters").on("change", function() {
+					toggleSelection("age", this.value);
+				});					
 			}
 
 			function toggleObjectInfoPanel() {
@@ -278,7 +317,6 @@
 				} else {
         			$("#info").show();
 					$("#info-button").removeClass("off").addClass("on");
-
 				}
 			}
 
@@ -316,7 +354,7 @@
 						.attr("href", d.url)
 						.attr("target", "_blank")
 						.html(t);
-					details.text(d.classification);
+					details.text(d.classification + "; On view for " + d.gallery.age + " days");
 					if (d.primaryimageurl) {
 						info.append("img")
 							.attr("src", d.primaryimageurl + "?width=300");
@@ -324,14 +362,18 @@
 				}
 			}
 
-			function toggleSelection(c) {
-				var i = $.inArray(c, filterSelection);
-				if (i > -1) {
-					filterSelection.splice(i, 1);
-				} else {
-					filterSelection.push(c);
+			function toggleSelection(f, v) {
+				if (f === "classification") {
+					var i = $.inArray(v, filterSelection[f]);
+					if (i > -1) {
+						filterSelection[f].splice(i, 1);
+					} else {
+						filterSelection[f].push(v);
+					}
+				} else if (f === "age") {
+					filterSelection[f] = v;
 				}
-
+				
 				updateLayout();
 			}
 
@@ -340,7 +382,7 @@
 				if (layoutType === "pack") {
 					d3.selectAll("#museum circle.child, #museum text.child")
 						.style("opacity", 1.0)
-						.filter(function(d) {return ($.inArray(d.classification, filterSelection) < 0);})
+						.filter(isNotInSelection)
 							.style("opacity", 0.2);
 				
 				} else if (layoutType === "tree") {
@@ -348,8 +390,20 @@
 				} else if (layoutType === "floorplan") {
 					d3.selectAll("#museum circle.object")
 						.style("opacity", 1.0)
-						.filter(function(d) {return ($.inArray(d.classification, filterSelection) < 0);})
+						.filter(isNotInSelection)
 							.style("opacity", 0.2);					
+				}
+			}
+
+			function isNotInSelection(record) {
+				if ($.inArray(record.classification, filterSelection.classification) < 0) {
+					return true;
+				} else {
+					if (record.gallery.age > filterSelection.age) {
+						return true;
+					} else {
+						return false;
+					}
 				}
 			}
 
@@ -419,10 +473,18 @@
 				}
 
 				function reset() {
-					filterSelection = [];
+					filterSelection = {
+						"classification": [],
+						"age": 9999999
+					};
+					
+					// reset all of the interest buttons
 					$(".interest-button").removeClass("button-on");
+					$("#age-filters").prop('selectedIndex',0);
+					
+					// reset the display
 					d3.selectAll("#museum circle.object")
-						.style("opacity", 1.0);
+						.style("opacity", 0.2);
 				}
 
 				function updateInfoPanel(data) {
@@ -440,7 +502,7 @@
 						.attr("href", data.url)
 						.attr("target", "_blank")
 						.html(t);
-					details.text(data.classification);
+					details.text(data.classification + "; On view for " + data.gallery.age + " days");
 					if (data.primaryimageurl) {
 						info.append("img")
 							.attr("src", data.primaryimageurl + "?width=300");
@@ -511,8 +573,18 @@
 				  .on("click", function(d) { return zoom(node == d ? root : d); });
 
 				function reset() {
+					filterSelection = {
+						"classification": [],
+						"age": 9999999
+					};
+					
+					// reset all of the interest buttons
+					$(".interest-button").removeClass("button-on");
+					$("#age-filters").prop('selectedIndex',0);
+					
+					// reset the display
 					d3.selectAll("#museum circle.child")
-						.style("opacity", 1.0);
+						.style("opacity", 0.2);
 				}
 
 				function zoom(d, i) {
