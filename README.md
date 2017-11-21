@@ -12,3 +12,9 @@ A [Harvard Art Museums API key](http://www.harvardartmuseums.org/collections/api
 2. Copy js/config-sample.js to js/config.js
 
 3. Open js/config.js in a text editor and set the value of apiKey to your Harvard Art Museums API key 
+
+## Play
+
+See it in action in this video: https://www.youtube.com/watch?v=ds5aWekBtkY  
+
+Try it yourself at this link: http://apps.harvardartmuseums.org/museum-explorer/  
